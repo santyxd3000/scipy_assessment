@@ -4,7 +4,6 @@ Do **NOT** open pull requests to this repository. If you do, your application wi
 
 ## Thoughts
 
-Replace the content of this file with your most important **thoughts** during the assessment execution. E.g.:
-- 12:32: Started looking for A,B,C
-- 12:35: Found X.
-- 12:41: Noticed it was the wrong path because of Y and Z and decided to change my approach to...
+- 17:08: I started this assessment by having a look at the project and all the files, as well as the issue created
+
+- 17:09: I tried dockerizing the file, and found some errors related to installing dependencies, I ran this code `docker run --rm -it $(docker build -q .)`
