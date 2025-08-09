@@ -1,0 +1,26 @@
+diff --git a/scipy/sparse/base.py b/scipy/sparse/base.py
+--- a/scipy/sparse/base.py
++++ b/scipy/sparse/base.py
+@@ -387,6 +387,9 @@ def __ge__(self, other):
+     def __abs__(self):
+         return abs(self.tocsr())
+
++    def __round__(self, ndigits=0):
++        return round(self.tocsr(), ndigits=ndigits)
++
+     def _add_sparse(self, other):
+         return self.tocsr()._add_sparse(other)
+
+diff --git a/scipy/sparse/data.py b/scipy/sparse/data.py
+--- a/scipy/sparse/data.py
++++ b/scipy/sparse/data.py
+@@ -37,6 +37,9 @@ def _deduped_data(self):
+     def __abs__(self):
+         return self._with_data(abs(self._deduped_data()))
+
++    def __round__(self, ndigits=0):
++        return self._with_data(np.around(self._deduped_data(), decimals=ndigits))
++
+     def _real(self):
+         return self._with_data(self.data.real)
+
