@@ -1,0 +1,108 @@
+#DOCKERFILE
+
+
+# Use a specific Python base image version
+FROM python:3.8-slim-bullseye
+
+# Set work directory
+WORKDIR /usr/src/app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gfortran \
+    libgfortran5 \
+    python3-dev \
+    libopenblas-dev \
+    liblapack-dev \
+    libatlas-base-dev \
+    pkg-config \
+    git \
+ && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip and install specific versions of setuptools and wheel (legacy-friendly)
+RUN pip install --no-cache-dir --upgrade "pip<25" \
+ && pip install --no-cache-dir "setuptools<60" "wheel<0.40"
+
+# Install Python dependencies compatible with legacy SciPy builds
+RUN pip install --no-cache-dir numpy==1.19.5 cython==0.29.33 pytest pybind11 nose
+
+# Make legacy builds use the preinstalled deps and be stable
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+ENV PIP_NO_BUILD_ISOLATION=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Fortran/C build flags — key fix is -fallow-argument-mismatch
+ENV FFLAGS="-O2 -fPIC -fallow-argument-mismatch"
+ENV FCFLAGS="${FFLAGS}" F77FLAGS="${FFLAGS}"
+# Help the linker find BLAS/LAPACK explicitly
+ENV BLAS=/usr/lib/x86_64-linux-gnu/libopenblas.so
+ENV LAPACK=/usr/lib/x86_64-linux-gnu/liblapack.so
+ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu
+
+# Bring sources before sed/install
+COPY . .
+
+# Modify setup.py to fix the version issue
+RUN sed -i 's/ISRELEASED[[:space:]]*=[[:space:]]*False/ISRELEASED = True/' setup.py
+
+# Modify setup.py to remove test_suite option
+RUN sed -i '/test_suite/d' setup.py
+
+# Install scipy in editable mode with verbose output (legacy path)
+RUN pip install --no-cache-dir --no-use-pep517 -e . -v
+
+# Remove pytest.ini if it exists (to avoid config issues)
+RUN rm -f pytest.ini
+
+# Run specified test
+CMD ["pytest","-v","-rA","--tb=long","-p","no:cacheprovider","--disable-warnings","scipy/sparse/tests/test_base.py"]
+
+
+#FIX.PATCH FILE
+diff --git a/scipy/sparse/base.py b/scipy/sparse/base.py
+--- a/scipy/sparse/base.py
++++ b/scipy/sparse/base.py
+@@ -387,6 +387,9 @@ def __ge__(self, other):
+     def __abs__(self):
+         return abs(self.tocsr())
+
++    def __round__(self, ndigits=0):
++        return round(self.tocsr(), ndigits=ndigits)
++
+     def _add_sparse(self, other):
+         return self.tocsr()._add_sparse(other)
+
+diff --git a/scipy/sparse/data.py b/scipy/sparse/data.py
+--- a/scipy/sparse/data.py
++++ b/scipy/sparse/data.py
+@@ -37,6 +37,9 @@ def _deduped_data(self):
+     def __abs__(self):
+         return self._with_data(abs(self._deduped_data()))
+
++    def __round__(self, ndigits=0):
++        return self._with_data(np.around(self._deduped_data(), decimals=ndigits))
++
+     def _real(self):
+         return self._with_data(self.data.real)
+
+
+
+#README.md
+# Revelo's Assessment
+
+Do **NOT** open pull requests to this repository. If you do, your application will be immediately discarded.
+
+## Thoughts
+
+- 17:08: I started this assessment by having a look at the project and all the files, as well as the issue created
+
+- 17:09: I tried dockerizing the file, and found some errors related to installing dependencies, I ran this code `docker run --rm -it $(docker build -q .)`
+- 17:12:  – I started with the original Dockerfile using python:3.12-slim and basic dependency installation.
+
+- 17:20:  – I modified the apt-get install block to include more build dependencies but introduced a syntax error by breaking the line incorrectly.
+  
+- 17:35: – I adjusted the pip install commands, removing --use-pep517, but later hit SciPy Fortran compilation errors.
+
+- 17:50: – I attempted to apply fix.patch, but it failed because the target files had diverged from the patch’s expected state.
+
+- 18:05 – I tried to regenerate or replace the patch but mixed in unrelated files, causing git apply errors, solved it finally with the `git apply -C1 --check fix.patch` command
